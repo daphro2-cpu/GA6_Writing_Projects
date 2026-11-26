@@ -33,7 +33,23 @@ function quiz(id,q,options,correct,reason){return `<div class="quiz"><b>${q}</b>
 function checkQuiz(id,n,reason){let v=$('#'+id).value;$('#'+id+'-feedback').textContent=v===''?'Choose an answer first.':+v===n?'Yes! '+reason:'Not quite. '+reason}
 function moveStep(i,d){let order=state.fields.order||[2,4,0,3,1];[order[i],order[i+d]]=[order[i+d],order[i]];state.fields.order=order;save();render()}
 function checkOrder(){let a=state.fields.order||[2,4,0,3,1];let count=a.filter((v,i)=>v===i).length;$('#orderFeedback').textContent=count===5?'The mill is working! All five steps are in order.':`${count} of 5 steps are in place. Think about what starts the movement.`}
-function showDef(w,d){$('#definition').textContent=w+' — '+d}
+const LINK_PRACTICE={
+'first / then / finally':{pattern:'Use sequence words at the start of steps, followed by a comma.',example:'First, place the clay on the wheel. Then, start the wheel. Finally, shape the clay with your hands.',task:'Put these actions in order: shape the clay / place the clay on the wheel / start the wheel. Use first, then and finally.',answer:'First, place the clay on the wheel. Then, start the wheel. Finally, shape the clay.'},
+'because':{pattern:'Effect + because + cause.',example:'The wheel turns because the water pushes against its blades.',task:'Join these ideas: The belt moves. The motor turns the drive pulley.',answer:'The belt moves because the motor turns the drive pulley.'},
+'this causes':{pattern:'Cause. This causes + noun + to + verb.',example:'Water pushes against the blades. This causes the wheel to rotate.',task:'Join these ideas: The drive pulley turns. The belt moves. Use this causes.',answer:'The drive pulley turns. This causes the belt to move.'},
+'this makes':{pattern:'Cause. This makes + noun + base verb (no “to”).',example:'The motor turns the pulley. This makes the belt move.',task:'Join these ideas: Water pushes against the blades. The wheel rotates. Use this makes.',answer:'Water pushes against the blades. This makes the wheel rotate.'},
+'which in turn':{pattern:'One action leads to another: …, which in turn + verb …',example:'The motor turns the drive pulley, which in turn moves the belt.',task:'Link the chain of actions: The chain turns the rear sprocket. The rear sprocket turns the back wheel.',answer:'The chain turns the rear sprocket, which in turn turns the back wheel.'},
+'so that':{pattern:'Action + so that + purpose or intended result. Often use can.',example:'The gate is opened so that water can reach the wheel.',task:'Join these ideas: The potter starts the wheel. The potter can shape the clay as it spins.',answer:'The potter starts the wheel so that the potter can shape the clay as it spins.'}
+};
+function showDef(w,d){
+const practice=LINK_PRACTICE[w], id='link-practice-'+Object.keys(LINK_PRACTICE).indexOf(w);
+$('#definition').textContent=w+' — '+d;
+$('#modalContent').innerHTML='<h2 id="wordTitle">'+esc(w)+'</h2><p style="font-size:22px">'+esc(d)+'</p>'+
+(practice?'<div class="callout" style="font-size:19px"><b>How to use it</b><br>'+esc(practice.pattern)+'</div><p><b>Example</b><br>'+esc(practice.example)+'</p><h3>Your turn: link the ideas</h3><p>'+esc(practice.task)+'</p>'+field(id,'Our sentence','Say it together or type your sentence here.',2)+reveal(esc(practice.answer),'Show a possible answer'):'<p>Can you use <b>'+esc(w)+'</b> to explain your chosen machine?</p>');
+$('#modal').setAttribute('aria-labelledby','wordTitle');
+$('#modal').showModal();
+$('#modal').scrollTop=0;
+}
 function startTimer(btn,seconds){clearInterval(timer);let left=seconds;btn.textContent=left+' seconds';timer=setInterval(()=>{left--;btn.textContent=left>0?left+' seconds':'Time to share!';if(left<=0)clearInterval(timer)},1000)}
 function changeBook(p){book=p;$('#bookSelect').value=p;$('#bookImage').src='assets/book-'+p+'.jpg';$('#bookImage').alt='Textbook page '+p;$('#bookImage').onload=()=>{fitBoards();drawInk('book')};$('#bookPane .scrollpane').scrollTop=0;drawInk('book')}
 function setView(v){state.view=v;$('#lessonPane').style.display=v==='book'?'none':'flex';$('#bookPane').style.display=v==='lesson'?'none':'flex';$('#lessonPane').style.width=v==='both'?'50%':'100%';$('#bookPane').style.width=v==='both'?'50%':'100%';['lesson','both','book'].forEach((x,i)=>$('#'+['showLesson','showBoth','showBook'][i]).classList.toggle('active',x===v));save();requestAnimationFrame(fitBoards)}
