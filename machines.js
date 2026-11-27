@@ -1,0 +1,113 @@
+/* Small offline 3D teaching models. Coordinates and mechanisms are simplified. */
+const staticMachineSVG=machineSVG;
+machineSVG=function(id){return '<div class="model-launch">'+staticMachineSVG(id)+'<button class="primary" onclick="openMachine(\''+id+'\')">Explore moving 3D model</button></div>'};
+const PART_HELP={
+bicycle:{pedals:'Your feet push the pedals to turn the crank.',chain:'The chain carries motion from the front chainring to the rear sprocket. Gold dots show its travel.',sprocket:'The rear sprocket engages the chain and drives the rear wheel while you pedal.',wheels:'Both wheels roll. Only the rear wheel is driven by the chain.'},
+pulley:{wheel:'The grooved wheel turns as the rope moves over it.',rope:'Pull one end down: the other end rises by the same distance.',load:'The rope pulls this load upwards. One fixed pulley changes the direction, not the ideal size, of the force.'},
+pottery:{clay:'Clay spins with the wheel. Press Shape clay to represent the potter shaping it with wet hands.',wheel:'The wheel head turns the clay; spinning alone does not shape or harden it.',motor:'The motor supplies turning motion. The speed control represents the foot pedal.'},
+conveyor:{motor:'The motor turns the drive pulley.',pulleys:'Friction between the drive pulley and belt makes the belt move.',belt:'The belt returns underneath: the upper and lower runs move in opposite directions.',parcel:'The parcel travels with the upper run of the belt.'},
+water:{channel:'Opening the gate allows water to flow towards the wheel.',wheel:'Falling water acts on the blades or buckets and makes the wheel turn.',axle:'The axle turns with the wheel and carries turning motion to other machinery.'},
+sharpener:{crank:'Your hand turns the crank.',cutter:'The crank drives cutters inside the case. This model shows one simplified rotating cutter.',pencil:'The cutter removes small pieces of wood and graphite to make a point.',tray:'The tray collects the shavings. The casing is omitted so you can look inside.'},
+winch:{handle:'Turning the handle drives the drum through gears (omitted in this simplified view).',drum:'The drum turns and winds cable around itself.',cable:'As cable winds onto the drum, the free length becomes shorter.',load:'The shortening cable pulls the load closer.'}
+};
+let activeMachine=null;
+function openMachine(id){
+ if(activeMachine)activeMachine.stop();
+ let dlg=document.getElementById('machineDialog');
+ if(!dlg){dlg=document.createElement('dialog');dlg.id='machineDialog';document.body.append(dlg);}
+ const m=WHEELS.find(x=>x.id===id);
+ dlg.innerHTML='<button class="modalclose" id="machineClose">Close ×</button><h2 id="machineTitle">'+m.name+' · motion lab</h2><p class="model-hint">Drag to turn the model. Click a numbered part to discover its job.</p><canvas id="machineCanvas" width="900" height="440" aria-label="Rotatable simplified model of '+m.name+'"></canvas><div class="model-controls"><button id="machinePlay">Start movement</button><button id="machineReset">Reset</button><button id="machineFront">Front view</button><button id="machineAngle">Angled view</button><label>Speed <input id="machineSpeed" type="range" min=".25" max="2" value="1" step=".25"></label>'+(id==='pottery'?'<button id="machineShape">Shape clay</button>':'')+'</div><div class="model-parts">'+Object.keys(PART_HELP[id]).map((p,i)=>'<button data-part="'+p+'">'+(i+1)+'. '+p+'</button>').join('')+'</div><p class="model-explanation" id="machineExplanation" aria-live="polite">'+m.cause+' → '+m.effect+'.</p><details><summary>Explain the process</summary><ol>'+m.steps.map(s=>'<li>'+s+'</li>').join('')+'</ol></details><p class="model-note">Simplified teaching model, not to scale. Some casings and connections are omitted to reveal movement.'+(id==='bicycle'?' The bicycle stays in place here so you can inspect its drive.':id==='conveyor'?' Parcels repeat to demonstrate continuous operation.':'')+'</p>';
+ dlg.setAttribute('aria-labelledby','machineTitle');dlg.showModal();
+ const canvas=dlg.querySelector('canvas'),ctx=canvas.getContext('2d');
+ let yaw=.4,pitch=-.22,t=0,playing=false,speed=1,shape=0,raf,previous=0,drag=null,markers=[],selected=null;
+ const navy='#25384b',gold='#efb647',teal='#368c84',purple='#8861ad';
+ function project(p){let [x,y,z]=p;let xx=x*Math.cos(yaw)+z*Math.sin(yaw),zz=-x*Math.sin(yaw)+z*Math.cos(yaw);return [450+xx*1.18,215+(y*Math.cos(pitch)-zz*Math.sin(pitch))*1.18,y*Math.sin(pitch)+zz*Math.cos(pitch)];}
+ let shapes=[];
+ function poly(points,color){shapes.push({p:points.map(project),color});}
+ function line(points,color=navy,width=4){shapes.push({p:points.map(project),color,width});}
+ function box(x,y,z,w,h,d,color){let a=[x-w/2,y-h/2,z-d/2],b=[x+w/2,y+h/2,z+d/2];for(const f of [[0,1,3,2],[4,6,7,5],[0,4,5,1],[2,3,7,6],[0,2,6,4],[1,5,7,3]]){let v=[[a[0],a[1],a[2]],[b[0],a[1],a[2]],[a[0],b[1],a[2]],[b[0],b[1],a[2]],[a[0],a[1],b[2]],[b[0],a[1],b[2]],[a[0],b[1],b[2]],[b[0],b[1],b[2]]];poly(f.map(i=>v[i]),color);}}
+ function wheel(x,y,z,r,depth,angle=0,color=gold,axis='z',solid=false){
+ const pt=(a,d,rad=r)=>axis==='y'?[x+Math.cos(a)*rad,y+d,z+Math.sin(a)*rad]:[x+Math.cos(a)*rad,y+Math.sin(a)*rad,z+d];
+ let front=[],back=[];for(let i=0;i<32;i++){let a=i*Math.PI/16;front.push(pt(a,depth/2));back.push(pt(a,-depth/2));poly([pt(a,-depth/2),pt(a,depth/2),pt(a+Math.PI/16,depth/2),pt(a+Math.PI/16,-depth/2)],color);}
+ if(solid){poly(back,color);poly(front,color);}else {line([...front,front[0]],navy,4);line([...back,back[0]],navy,3);}
+ for(let i=0;i<8;i++){const a=angle+i*Math.PI/4;line([pt(0,depth/2,0),pt(a,depth/2,r*.9)],solid?navy:color,3);}
+ line([pt(0,-depth,0),pt(0,depth,0)],navy,7);
+ }
+ function mark(key,p){markers.push({key,p:project(p)});}
+ function model(){
+ shapes=[];markers=[];let a=t*2;
+ if(id==='bicycle'){
+  wheel(-160,65,0,85,15,-a*2);wheel(160,65,0,85,15,-a*2);
+  line([[-160,65,0],[-65,-65,0],[0,65,0],[-160,65,0]],teal,9);line([[-65,-65,0],[100,-65,0],[0,65,0]],teal,9);line([[160,65,0],[100,-65,0],[90,-110,0],[125,-110,0]],teal,8);line([[-65,-65,0],[-75,-90,0]],navy,8);box(-75,-95,0,65,9,28,navy);
+  wheel(0,65,25,30,6,-a,gold,'z',true);wheel(-160,65,25,15,6,-a*2,gold,'z',true);
+  line([[0,35,30],[-160,50,30],[-160,80,30],[0,95,30],[0,35,30]],purple,4);
+  for(let i=0;i<10;i++){let u=(i/10+t*.2)%1;let p=u<.5?[-320*u,35+30*u,32]:[-160+320*(u-.5),80+30*(u-.5),32];box(...p,5,5,5,gold);}
+  line([[0,65,38],[Math.cos(-a)*42,65+Math.sin(-a)*42,38]],navy,7);box(Math.cos(-a)*42,65+Math.sin(-a)*42,46,25,10,25,teal);
+  mark('pedals',[Math.cos(-a)*42,65+Math.sin(-a)*42,46]);mark('chain',[-80,105,35]);mark('sprocket',[-160,65,40]);mark('wheels',[170,-25,0]);
+ }else if(id==='pulley'){
+  const lift=Math.min(t*22,125);line([[-150,-140,0],[150,-140,0]],navy,12);line([[0,-140,0],[0,-70,0]],navy,9);wheel(0,-60,0,48,28,lift/48);
+  let rope=[[-50,110-lift,20],[-50,-60,20]];for(let i=0;i<=20;i++){let a=Math.PI+i*Math.PI/20;rope.push([Math.cos(a)*50,-60+Math.sin(a)*50,20]);}rope.push([50,30+lift,20]);line(rope,gold,7);box(-50,135-lift,20,65,50,45,teal);box(50,35+lift,20,22,12,22,purple);
+  mark('wheel',[0,-60,30]);mark('rope',[50,0+lift,25]);mark('load',[-50,135-lift,50]);
+  if(lift===125&&playing){playing=false;play.textContent='Replay lift';}
+ }else if(id==='pottery'){
+  box(0,75,0,220,18,160,teal);box(-80,125,-55,15,90,15,navy);box(80,125,55,15,90,15,navy);box(0,105,0,60,65,60,purple);
+  wheel(0,55,0,100,10,a,teal,'y',true);
+  const r=shape?47:60,h=shape?100:70;
+  const profile=shape?[.72,1,.95,.72]:[.9,1,1,.95];
+  for(let j=0;j<3;j++)for(let i=0;i<32;i++){
+   let b=i*Math.PI/16+a,bb=b+Math.PI/16;
+   poly([[Math.cos(b)*r*profile[j],45-h*j/3,Math.sin(b)*r*profile[j]],[Math.cos(bb)*r*profile[j],45-h*j/3,Math.sin(bb)*r*profile[j]],[Math.cos(bb)*r*profile[j+1],45-h*(j+1)/3,Math.sin(bb)*r*profile[j+1]],[Math.cos(b)*r*profile[j+1],45-h*(j+1)/3,Math.sin(b)*r*profile[j+1]]],'#cb8c5c');
+  }
+  poly(Array.from({length:32},(_,i)=>[Math.cos(i*Math.PI/16)*r*profile[3]*.85,44-h,Math.sin(i*Math.PI/16)*r*profile[3]*.85]),'#805330');
+  mark('clay',[0,0-h/2,35]);mark('wheel',[90,55,0]);mark('motor',[0,110,45]);
+ }else if(id==='conveyor'){
+  wheel(-170,50,0,36,100,a,teal);wheel(170,50,0,36,100,a,teal);
+  poly([[-170,14,-50],[170,14,-50],[170,14,50],[-170,14,50]],'#9cc8be');poly([[-170,86,-50],[170,86,-50],[170,86,50],[-170,86,50]],'#9cc8be');
+  for(let i=0;i<12;i++){let x=-170+((i*30+t*35)%340);line([[x,13,-50],[x,13,50]],teal,2);let b=170-((i*30+t*35)%340);line([[b,87,-50],[b,87,50]],teal,2);}
+  let x=-150+(t*35%300);box(x,-15,0,45,56,50,gold);box(-170,140,0,14,100,85,navy);box(170,140,0,14,100,85,navy);box(-170,50,90,55,55,65,purple);
+  mark('motor',[-170,50,130]);mark('pulleys',[170,50,60]);mark('belt',[30,14,55]);mark('parcel',[x,-45,20]);
+ }else if(id==='water'){
+  wheel(0,35,0,95,55,-a,gold);
+  for(let i=0;i<12;i++){let b=-a+i*Math.PI/6;box(Math.cos(b)*94,35+Math.sin(b)*94,0,20,20,65,'#b7844b');}
+  line([[0,35,-90],[0,35,150]],navy,12);box(-150,-100,0,180,10,50,teal);box(-85,t>0?-145:-118,0,8,t>0?40:45,52,navy);
+  if(t>0)for(let i=0;i<12;i++){let v=(t*60+i*15)%170;box(-55+v*.15,-98+v,0,6,10,8,'#3aa6d2');}
+  mark('channel',[-150,-100,25]);mark('wheel',[90,30,35]);mark('axle',[0,35,150]);
+ }else if(id==='sharpener'){
+  box(0,105,0,180,25,120,teal);wheel(20,5,0,34,85,a*3,gold,'z',true);line([[20,5,45],[20,5,110]],navy,8);
+  line([[20,5,110],[20+Math.cos(a)*55,5+Math.sin(a)*55,110]],navy,8);box(20+Math.cos(a)*55,5+Math.sin(a)*55,130,20,20,45,purple);
+  box(-110,0,0,160,14,14,gold);poly([[-30,-7,-7],[-30,7,-7],[-10,0,0]],'#c7a476');poly([[-30,-7,7],[-30,7,7],[-10,0,0]],'#c7a476');
+  if(t>0)for(let i=0;i<9;i++){let v=(t*50+i*14)%90;box(-10+Math.sin(i)*25,v,Math.cos(i)*25,7,4,5,'#bc8250');}
+  mark('crank',[70,5,130]);mark('cutter',[20,5,30]);mark('pencil',[-130,0,10]);mark('tray',[0,105,65]);
+ }else if(id==='winch'){
+  let pull=Math.min(t*20,180);box(-130,110,0,150,15,130,navy);wheel(-130,40,0,45,90,a,teal,'z',true);wheel(-130,40,-48,60,5,a,gold);wheel(-130,40,48,60,5,a,gold);
+  for(let i=0;i<8;i++){let z=-38+i*10,pts=[];for(let j=0;j<=32;j++){let b=j*Math.PI/16;pts.push([-130+Math.cos(b)*47,40+Math.sin(b)*47,z]);}line(pts,purple,3);}
+  line([[-130,40,60],[-130+Math.cos(a)*78,40+Math.sin(a)*78,60]],navy,7);box(-130+Math.cos(a)*78,40+Math.sin(a)*78,80,18,18,35,gold);
+  line([[-130,87,35],[220-pull,87,35]],purple,5);box(230-pull,90,35,65,65,70,teal);
+  mark('handle',[-130+Math.cos(a)*78,40+Math.sin(a)*78,80]);mark('drum',[-130,10,55]);mark('cable',[-10,87,35]);mark('load',[230-pull,90,80]);
+  if(pull===180&&playing){playing=false;play.textContent='Replay pull';}
+ }
+ }
+ function draw(){
+  ctx.clearRect(0,0,900,440);ctx.fillStyle='#edf5ed';ctx.fillRect(0,0,900,440);model();
+  shapes.sort((a,b)=>a.p.reduce((s,p)=>s+p[2],0)/a.p.length-b.p.reduce((s,p)=>s+p[2],0)/b.p.length);
+  for(const s of shapes){ctx.beginPath();s.p.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));if(s.width){ctx.strokeStyle=s.color;ctx.lineWidth=s.width;ctx.lineJoin='round';ctx.stroke();}else{ctx.closePath();ctx.fillStyle=s.color;ctx.fill();ctx.strokeStyle='#25384b55';ctx.lineWidth=.7;ctx.stroke();}}
+  markers.forEach((m,i)=>{ctx.beginPath();ctx.arc(m.p[0],m.p[1],14,0,Math.PI*2);ctx.fillStyle=selected===m.key?'#f3b645':'#fffdf3';ctx.fill();ctx.strokeStyle=navy;ctx.lineWidth=2;ctx.stroke();ctx.fillStyle=navy;ctx.font='bold 16px Arial';ctx.textAlign='center';ctx.fillText(i+1,m.p[0],m.p[1]+5);});
+ }
+ const play=dlg.querySelector('#machinePlay');
+ play.onclick=()=>{if(!playing&&((id==='pulley'&&t>=125/22)||(id==='winch'&&t>=9)))t=0;playing=!playing;play.textContent=playing?'Pause movement':'Resume movement';};
+ dlg.querySelector('#machineReset').onclick=()=>{t=0;shape=0;playing=false;play.textContent='Start movement';draw();};
+ dlg.querySelector('#machineFront').onclick=()=>{yaw=0;pitch=0;draw();};
+ dlg.querySelector('#machineAngle').onclick=()=>{yaw=.65;pitch=-.4;draw();};
+ dlg.querySelector('#machineSpeed').oninput=e=>speed=+e.target.value;
+ if(id==='pottery')dlg.querySelector('#machineShape').onclick=()=>{shape=1-shape;explain('clay');draw();};
+ function explain(key){selected=key;dlg.querySelector('#machineExplanation').textContent=PART_HELP[id][key];dlg.querySelectorAll('[data-part]').forEach(b=>b.classList.toggle('active',b.dataset.part===key));draw();}
+ dlg.querySelectorAll('[data-part]').forEach(b=>b.onclick=()=>explain(b.dataset.part));
+ canvas.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY};canvas.setPointerCapture(e.pointerId);};
+ canvas.onpointermove=e=>{if(!drag)return;yaw+=(e.clientX-drag.x)*.009;pitch=Math.max(-1,Math.min(1,pitch+(e.clientY-drag.y)*.009));drag.x=e.clientX;drag.y=e.clientY;draw();};
+ canvas.onpointerup=e=>{if(drag&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)<7){let r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*900/r.width,y=(e.clientY-r.top)*440/r.height;let hit=markers.find(m=>Math.hypot(x-m.p[0],y-m.p[1])<24);if(hit)explain(hit.key);}drag=null;};
+ canvas.onpointercancel=()=>drag=null;
+ function loop(now){if(!dlg.open)return;if(previous&&playing)t+=Math.min((now-previous)/1000,.06)*speed;previous=now;draw();raf=requestAnimationFrame(loop);}
+ activeMachine={stop(){cancelAnimationFrame(raf);playing=false;}};
+ dlg.onclose=()=>activeMachine?.stop();dlg.querySelector('#machineClose').onclick=()=>dlg.close();
+ draw();raf=requestAnimationFrame(loop);
+}
