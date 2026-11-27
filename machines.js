@@ -37,13 +37,13 @@ function openMachine(id){
  function model(){
  shapes=[];markers=[];let a=t*2;
  if(id==='bicycle'){
-  wheel(-160,65,0,85,15,-a*2);wheel(160,65,0,85,15,-a*2);
+  wheel(-160,65,0,85,15,a*2);wheel(160,65,0,85,15,a*2);
   line([[-160,65,0],[-65,-65,0],[0,65,0],[-160,65,0]],teal,9);line([[-65,-65,0],[100,-65,0],[0,65,0]],teal,9);line([[160,65,0],[100,-65,0],[90,-110,0],[125,-110,0]],teal,8);line([[-65,-65,0],[-75,-90,0]],navy,8);box(-75,-95,0,65,9,28,navy);
-  wheel(0,65,25,30,6,-a,gold,'z',true);wheel(-160,65,25,15,6,-a*2,gold,'z',true);
+  wheel(0,65,25,30,6,a,gold,'z',true);wheel(-160,65,25,15,6,a*2,gold,'z',true);
   line([[0,35,30],[-160,50,30],[-160,80,30],[0,95,30],[0,35,30]],purple,4);
-  for(let i=0;i<10;i++){let u=(i/10+t*.2)%1;let p=u<.5?[-320*u,35+30*u,32]:[-160+320*(u-.5),80+30*(u-.5),32];box(...p,5,5,5,gold);}
-  line([[0,65,38],[Math.cos(-a)*42,65+Math.sin(-a)*42,38]],navy,7);box(Math.cos(-a)*42,65+Math.sin(-a)*42,46,25,10,25,teal);
-  mark('pedals',[Math.cos(-a)*42,65+Math.sin(-a)*42,46]);mark('chain',[-80,105,35]);mark('sprocket',[-160,65,40]);mark('wheels',[170,-25,0]);
+  for(let i=0;i<10;i++){let u=(i/10+1000-t*.2)%1;let p=u<.5?[-320*u,35+30*u,32]:[-160+320*(u-.5),80+30*(u-.5),32];box(...p,5,5,5,gold);}
+  line([[0,65,38],[Math.cos(a)*42,65+Math.sin(a)*42,38]],navy,7);box(Math.cos(a)*42,65+Math.sin(a)*42,46,25,10,25,teal);
+  mark('pedals',[Math.cos(a)*42,65+Math.sin(a)*42,46]);mark('chain',[-80,105,35]);mark('sprocket',[-160,65,40]);mark('wheels',[170,-25,0]);
  }else if(id==='pulley'){
   const lift=Math.min(t*22,125);line([[-150,-140,0],[150,-140,0]],navy,12);line([[0,-140,0],[0,-70,0]],navy,9);wheel(0,-60,0,48,28,lift/48);
   let rope=[[-50,110-lift,20],[-50,-60,20]];for(let i=0;i<=20;i++){let a=Math.PI+i*Math.PI/20;rope.push([Math.cos(a)*50,-60+Math.sin(a)*50,20]);}rope.push([50,30+lift,20]);line(rope,gold,7);box(-50,135-lift,20,65,50,45,teal);box(50,35+lift,20,22,12,22,purple);
